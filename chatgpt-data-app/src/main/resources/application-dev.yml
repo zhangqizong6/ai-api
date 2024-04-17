@@ -9,6 +9,12 @@ app:
     # 跨域，开发阶段可以设置为 * 不限制
     cross-origin: '*'
 
+wx:
+  config:
+    originalid: gh_f41db0134b40
+    appid: wx23103643629c3bf5
+    token: b8b6
+
 # 线程池配置
 thread:
   pool:

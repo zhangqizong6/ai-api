@@ -3,6 +3,11 @@ package cn.bugstack.chatgpt.data.domain.openai.service;
 import cn.bugstack.chatglm.model.Model;
 import cn.bugstack.chatgpt.common.Constants;
 import cn.bugstack.chatgpt.data.domain.openai.model.aggregates.ChatProcessAggregate;
+import cn.bugstack.chatgpt.data.domain.openai.model.entity.RuleLogicEntity;
+import cn.bugstack.chatgpt.data.domain.openai.model.entity.UserAccountQuotaEntity;
+import cn.bugstack.chatgpt.data.domain.openai.model.valobj.LogicCheckTypeVO;
+import cn.bugstack.chatgpt.data.domain.openai.service.rule.ILogicFilter;
+import cn.bugstack.chatgpt.data.domain.openai.service.rule.factory.DefaultLogicFactory;
 import cn.bugstack.chatgpt.domain.chat.ChatChoice;
 import cn.bugstack.chatgpt.domain.chat.ChatCompletionRequest;
 import cn.bugstack.chatgpt.domain.chat.ChatCompletionResponse;
@@ -17,8 +22,10 @@ import org.jetbrains.annotations.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter;
 
+import javax.annotation.Resource;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -28,6 +35,9 @@ import java.util.stream.Collectors;
  */
 @Service
 public class ChatService extends AbstractChatService {
+
+    @Resource
+    private DefaultLogicFactory logicFactory;
 
     @Override
     protected void doMessageResponse(ChatProcessAggregate chatProcess, ResponseBodyEmitter emitter) throws JsonProcessingException {
@@ -76,6 +86,7 @@ public class ChatService extends AbstractChatService {
             }
         });
     }
+
     @Override
     protected void doGLMMessageResponse(ChatProcessAggregate chatProcess, ResponseBodyEmitter emitter) {
         // 1. 请求消息
@@ -104,7 +115,6 @@ public class ChatService extends AbstractChatService {
                 .messages(prompts)
                 .model(Model.GLM_3_5_TURBO)
                 .build();
-
 
 
         // 3.2 请求应答
@@ -140,6 +150,21 @@ public class ChatService extends AbstractChatService {
             throw new RuntimeException(e);
         }
 
+    }
+
+    @Override
+    protected RuleLogicEntity<ChatProcessAggregate> doCheckLogic(ChatProcessAggregate chatProcess, UserAccountQuotaEntity userAccountQuotaEntity, String... logics) throws Exception {
+        Map<String, ILogicFilter<UserAccountQuotaEntity>> logicFilterMap = logicFactory.openLogicFilter();
+        RuleLogicEntity<ChatProcessAggregate> entity = null;
+        for (String logic : logics) {
+            //直接放行
+            if (DefaultLogicFactory.LogicModel.NULL.getCode().equals(logic)) continue;
+            //从chatProcess拿出来对应的策略
+            entity = logicFilterMap.get(logic).filter(chatProcess, userAccountQuotaEntity);
+            if (!LogicCheckTypeVO.SUCCESS.equals(entity.getType())) return entity;
+        }
+        return entity != null ? entity : RuleLogicEntity.<ChatProcessAggregate>builder()
+                .type(LogicCheckTypeVO.SUCCESS).data(chatProcess).build();
     }
 
 

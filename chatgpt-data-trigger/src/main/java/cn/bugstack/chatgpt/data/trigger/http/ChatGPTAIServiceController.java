@@ -18,7 +18,6 @@ import java.io.IOException;
 import java.util.stream.Collectors;
 
 /**
- * @author Fuzhengwei bugstack.cn @小傅哥
  * @description
  * @create 2023-07-16 09:19
  */
@@ -51,6 +50,7 @@ public class ChatGPTAIServiceController {
      * "model": "gpt-3.5-turbo"
      * }'
      */
+
     @RequestMapping(value = "chat/completions", method = RequestMethod.POST)
     public ResponseBodyEmitter completionsStream(@RequestBody ChatGPTRequestDTO request, @RequestHeader("Authorization") String token, HttpServletResponse response) {
         log.info("流式问答请求开始，使用模型：{} 请求信息：{}", request.getModel(), JSON.toJSONString(request.getMessages()));
@@ -75,6 +75,7 @@ public class ChatGPTAIServiceController {
 
             // 3. 获取 OpenID
             String openid = authService.openid(token);
+
             log.info("流式问答请求处理，openid:{} 请求模型:{}", openid, request.getModel());
             // 4. 构建参数
             ChatProcessAggregate chatProcessAggregate = ChatProcessAggregate.builder()

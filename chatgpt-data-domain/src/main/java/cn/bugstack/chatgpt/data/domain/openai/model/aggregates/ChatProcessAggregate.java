@@ -30,6 +30,11 @@ public class ChatProcessAggregate {
     /** 问题描述 */
     private List<MessageEntity> messages;
 
+    /**
+     * 白名单列表 用逗号分割
+     * @param whiteListStr
+     * @return
+     */
     public boolean isWhiteList(String whiteListStr) {
         String[] whiteList = whiteListStr.split(Constants.SPLIT);
         for (String whiteOpenid : whiteList) {

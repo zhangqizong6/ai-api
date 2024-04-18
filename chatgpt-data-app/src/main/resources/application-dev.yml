@@ -1,5 +1,5 @@
 server:
-  port: 8090
+  port: 8080
 
 # 应用配置
 app:
@@ -55,7 +55,7 @@ redis:
   sdk:
     config:
       host: 127.0.0.1
-      port: 16379
+      port: 6379
       pool-size: 10
       min-idle-size: 5
       idle-timeout: 30000

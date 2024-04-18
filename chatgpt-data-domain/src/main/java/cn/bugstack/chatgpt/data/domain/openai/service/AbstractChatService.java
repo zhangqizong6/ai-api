@@ -27,9 +27,9 @@ public abstract class AbstractChatService implements IChatService {
     @Override
     public ResponseBodyEmitter completions(ChatProcessAggregate chatProcess) {
         // 1. 校验权限
-        if (!"b8b6".equals(chatProcess.getToken())) {
-            throw new ChatGPTException(Constants.ResponseCode.TOKEN_ERROR.getCode(), Constants.ResponseCode.TOKEN_ERROR.getInfo());
-        }
+//        if (!"b8b6".equals(chatProcess.getToken())) {
+//            throw new ChatGPTException(Constants.ResponseCode.TOKEN_ERROR.getCode(), Constants.ResponseCode.TOKEN_ERROR.getInfo());
+//        }
 
         // 2. 请求应答
         ResponseBodyEmitter emitter = new ResponseBodyEmitter(3 * 60 * 1000L);
@@ -52,10 +52,10 @@ public abstract class AbstractChatService implements IChatService {
 
     @Override
     public ResponseBodyEmitter completionsGLM(ChatProcessAggregate chatProcess) {
-        //1.校验权限
-        if (!"b8b6".equals(chatProcess.getToken())) {
-            throw new ChatGPTException(Constants.ResponseCode.TOKEN_ERROR.getCode(), Constants.ResponseCode.TOKEN_ERROR.getInfo());
-        }
+//        //1.校验权限
+//        if (!"b8b6".equals(chatProcess.getToken())) {
+//            throw new ChatGPTException(Constants.ResponseCode.TOKEN_ERROR.getCode(), Constants.ResponseCode.TOKEN_ERROR.getInfo());
+//        }
 
         //2.请求应答
         //ResponseBodyEmitter是一种用于将响应数据发送给客户端的异步模式，可以在Spring MVC的控制器方法中使用。

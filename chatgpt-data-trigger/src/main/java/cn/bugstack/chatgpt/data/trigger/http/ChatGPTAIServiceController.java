@@ -91,7 +91,7 @@ public class ChatGPTAIServiceController {
                     .build();
 
             // 3. 请求结果&返回
-            return chatService.completions(chatProcessAggregate);
+            return chatService.completions(emitter, chatProcessAggregate);
         } catch (Exception e) {
             log.error("流式应答，请求模型：{} 发生异常", request.getModel(), e);
             throw new ChatGPTException(e.getMessage());

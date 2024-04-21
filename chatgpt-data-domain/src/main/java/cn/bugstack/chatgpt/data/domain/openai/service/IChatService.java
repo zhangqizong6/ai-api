@@ -12,7 +12,7 @@ import java.io.IOException;
  */
 public interface IChatService {
 
-    ResponseBodyEmitter completions(ChatProcessAggregate chatProcess) throws Exception;
+    ResponseBodyEmitter completions(ResponseBodyEmitter emitter, ChatProcessAggregate chatProcess) throws Exception;
 
     ResponseBodyEmitter completionsGLM(ChatProcessAggregate var1) throws Exception;
 

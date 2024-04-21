@@ -4,6 +4,7 @@ import cn.bugstack.chatgpt.data.domain.openai.model.aggregates.ChatProcessAggreg
 import cn.bugstack.chatgpt.data.domain.openai.model.entity.RuleLogicEntity;
 import cn.bugstack.chatgpt.data.domain.openai.model.entity.UserAccountQuotaEntity;
 import cn.bugstack.chatgpt.data.domain.openai.model.valobj.LogicCheckTypeVO;
+import cn.bugstack.chatgpt.data.domain.openai.repository.IOpenAiRepository;
 import cn.bugstack.chatgpt.data.domain.openai.service.rule.factory.DefaultLogicFactory;
 import cn.bugstack.chatgpt.data.types.common.Constants;
 import cn.bugstack.chatgpt.data.types.exception.ChatGPTException;
@@ -29,30 +30,37 @@ public abstract class AbstractChatService implements IChatService {
     @Resource
     protected cn.bugstack.chatglm.session.OpenAiSession openAiGLMSession;
 
+    @Resource
+    private IOpenAiRepository openAiRepository;
+
     @Override
-    public ResponseBodyEmitter completions(ChatProcessAggregate chatProcess) throws Exception {
+    public ResponseBodyEmitter completions(ResponseBodyEmitter emitter, ChatProcessAggregate chatProcess) throws Exception {
         // 1. 校验权限
 //        if (!"b8b6".equals(chatProcess.getToken())) {
 //            throw new ChatGPTException(Constants.ResponseCode.TOKEN_ERROR.getCode(), Constants.ResponseCode.TOKEN_ERROR.getInfo());
 //        }
 
         // 2. 请求应答
-        ResponseBodyEmitter emitter = new ResponseBodyEmitter(3 * 60 * 1000L);
+//        ResponseBodyEmitter emitter = new ResponseBodyEmitter(3 * 60 * 1000L);
         emitter.onCompletion(() -> {
             log.info("流式问答请求完成，使用模型：{}", chatProcess.getModel());
         });
 
         emitter.onError(throwable -> log.error("流式问答请求疫情，使用模型：{}", chatProcess.getModel(), throwable));
 
+        UserAccountQuotaEntity userAccountQuotaEntity = openAiRepository.queryUserAccount(chatProcess.getOpenid());
 
         //3.规则过滤
         //doCheckLogic由子类实现
-        RuleLogicEntity<ChatProcessAggregate> ruleLogicEntity = this.doCheckLogic(chatProcess, null,
+        RuleLogicEntity<ChatProcessAggregate> ruleLogicEntity = this.doCheckLogic(chatProcess, userAccountQuotaEntity,
                 DefaultLogicFactory.LogicModel.ACCESS_LIMIT.getCode(),
-                DefaultLogicFactory.LogicModel.SENSITIVE_WORD.getCode());
+                DefaultLogicFactory.LogicModel.SENSITIVE_WORD.getCode(),
+                null != userAccountQuotaEntity ? DefaultLogicFactory.LogicModel.ACCOUNT_STATUS.getCode() : DefaultLogicFactory.LogicModel.NULL.getCode(),
+                null != userAccountQuotaEntity ? DefaultLogicFactory.LogicModel.MODEL_TYPE.getCode() : DefaultLogicFactory.LogicModel.NULL.getCode(),
+                null != userAccountQuotaEntity ? DefaultLogicFactory.LogicModel.USER_QUOTA.getCode() : DefaultLogicFactory.LogicModel.NULL.getCode());
 
         if (!LogicCheckTypeVO.SUCCESS.equals(ruleLogicEntity.getType())) {
-            log.info("用户【{}】不放行，状态为【{}】",chatProcess.getOpenid(),ruleLogicEntity);
+            log.info("用户【{}】不放行，状态为【{}】", chatProcess.getOpenid(), ruleLogicEntity);
             emitter.send(ruleLogicEntity.getInfo());
             emitter.complete();
             return emitter;

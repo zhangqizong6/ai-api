@@ -65,7 +65,7 @@ public class ApiTest {
         ChatCompletionRequest chatCompletion = ChatCompletionRequest
                 .builder()
                 .stream(true)
-                .messages(Collections.singletonList(Message.builder().role(Constants.Role.USER).content("写一个java冒泡排序").build()))
+                .messages(Collections.singletonList(Message.builder().role(Constants.Role.USER).content("1+1").build()))
                 .model(ChatCompletionRequest.Model.GPT_3_5_TURBO.getCode())
                 .build();
         // 2. 发起请求

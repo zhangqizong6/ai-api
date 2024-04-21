@@ -51,24 +51,24 @@ public class AuthController {
      * -d 'openid=oxfA9w8-23yvwTmo2ombz0E4zJv4'
      */
     @RequestMapping(value = "gen/code", method = RequestMethod.POST)
-    public Response<String> genCode(@RequestParam String openid) {
-        log.info("生成验证码开始，用户ID: {}", openid);
+    public Response<String> genCode(@RequestParam String openId) {
+        log.info("生成验证码开始，用户ID: {}", openId);
         try {
             UserBehaviorMessageEntity userBehaviorMessageEntity = new UserBehaviorMessageEntity();
-            userBehaviorMessageEntity.setOpenId(openid);
+            userBehaviorMessageEntity.setOpenId(openId);
             userBehaviorMessageEntity.setMsgType(MsgTypeVO.TEXT.getCode());
             userBehaviorMessageEntity.setContent("405");
             String xml = weiXinBehaviorService.acceptUserBehavior(userBehaviorMessageEntity);
             //xml转成bean泛型方法
             MessageTextEntity messageTextEntity = XmlUtil.xmlToBean(xml, MessageTextEntity.class);
-            log.info("生成验证码完成，用户ID: {} 生成结果：{}", openid, messageTextEntity.getContent());
+            log.info("生成验证码完成，用户ID: {} 生成结果：{}", openId, messageTextEntity.getContent());
             return Response.<String>builder()
                     .code(Constants.ResponseCode.SUCCESS.getCode())
                     .info(Constants.ResponseCode.SUCCESS.getInfo())
                     .data(messageTextEntity.getContent())
                     .build();
         } catch (Exception e) {
-            log.info("生成验证码失败，用户ID: {}", openid);
+            log.info("生成验证码失败，用户ID: {}", openId);
             return Response.<String>builder()
                     .code(Constants.ResponseCode.TOKEN_ERROR.getCode())
                     .info(Constants.ResponseCode.TOKEN_ERROR.getInfo())
@@ -119,4 +119,5 @@ public class AuthController {
                     .build();
         }
     }
+
 }

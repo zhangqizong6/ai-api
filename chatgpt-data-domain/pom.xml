@@ -74,7 +74,10 @@
             <artifactId>junit</artifactId>
             <scope>test</scope>
         </dependency>
-    </dependencies>
+        <dependency>
+            <groupId>com.github.wechatpay-apiv3</groupId>
+            <artifactId>wechatpay-java</artifactId>
+        </dependency>    </dependencies>
 
     <build>
         <finalName>chatgpt-data-domain</finalName>

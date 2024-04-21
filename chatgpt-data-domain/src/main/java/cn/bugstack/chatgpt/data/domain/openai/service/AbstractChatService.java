@@ -5,8 +5,12 @@ import cn.bugstack.chatgpt.data.domain.openai.model.entity.RuleLogicEntity;
 import cn.bugstack.chatgpt.data.domain.openai.model.entity.UserAccountQuotaEntity;
 import cn.bugstack.chatgpt.data.domain.openai.model.valobj.LogicCheckTypeVO;
 import cn.bugstack.chatgpt.data.domain.openai.repository.IOpenAiRepository;
+import cn.bugstack.chatgpt.data.domain.openai.service.channel.OpenAiGroupService;
+import cn.bugstack.chatgpt.data.domain.openai.service.channel.impl.ChatGLMService;
+import cn.bugstack.chatgpt.data.domain.openai.service.channel.impl.ChatGPTService;
 import cn.bugstack.chatgpt.data.domain.openai.service.rule.factory.DefaultLogicFactory;
 import cn.bugstack.chatgpt.data.types.common.Constants;
+import cn.bugstack.chatgpt.data.types.enums.OpenAiChannel;
 import cn.bugstack.chatgpt.data.types.exception.ChatGPTException;
 import cn.bugstack.chatgpt.session.OpenAiSession;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -15,6 +19,8 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter
 
 import javax.annotation.Resource;
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * @author Fuzhengwei bugstack.cn @小傅哥
@@ -24,102 +30,54 @@ import java.io.IOException;
 @Slf4j
 public abstract class AbstractChatService implements IChatService {
 
-    @Resource
-    protected OpenAiSession openAiSession;
+    private final Map<OpenAiChannel, OpenAiGroupService> openAiGroup = new HashMap<>();
 
-    @Resource
-    protected cn.bugstack.chatglm.session.OpenAiSession openAiGLMSession;
+    public AbstractChatService(ChatGPTService chatGPTService, ChatGLMService chatGLMService) {
+        openAiGroup.put(OpenAiChannel.ChatGPT, chatGPTService);
+        openAiGroup.put(OpenAiChannel.ChatGLM, chatGLMService);
+    }
 
     @Resource
     private IOpenAiRepository openAiRepository;
 
     @Override
     public ResponseBodyEmitter completions(ResponseBodyEmitter emitter, ChatProcessAggregate chatProcess) throws Exception {
-        // 1. 校验权限
-//        if (!"b8b6".equals(chatProcess.getToken())) {
-//            throw new ChatGPTException(Constants.ResponseCode.TOKEN_ERROR.getCode(), Constants.ResponseCode.TOKEN_ERROR.getInfo());
-//        }
+        try { // 1. 请求应答
+            emitter.onCompletion(() -> {
+                log.info("流式问答请求完成，使用模型：{}", chatProcess.getModel());
+            });
+            emitter.onError(throwable -> log.error("流式问答请求异常，使用模型：{}", chatProcess.getModel(), throwable));
 
-        // 2. 请求应答
-//        ResponseBodyEmitter emitter = new ResponseBodyEmitter(3 * 60 * 1000L);
-        emitter.onCompletion(() -> {
-            log.info("流式问答请求完成，使用模型：{}", chatProcess.getModel());
-        });
+            //2.账户获取
+            UserAccountQuotaEntity userAccountQuotaEntity = openAiRepository.queryUserAccount(chatProcess.getOpenid());
 
-        emitter.onError(throwable -> log.error("流式问答请求疫情，使用模型：{}", chatProcess.getModel(), throwable));
+            //3.规则过滤
+            //doCheckLogic由子类实现
+            RuleLogicEntity<ChatProcessAggregate> ruleLogicEntity = this.doCheckLogic(chatProcess, userAccountQuotaEntity,
+                    DefaultLogicFactory.LogicModel.ACCESS_LIMIT.getCode(),
+                    DefaultLogicFactory.LogicModel.SENSITIVE_WORD.getCode(),
+                    null != userAccountQuotaEntity ? DefaultLogicFactory.LogicModel.ACCOUNT_STATUS.getCode() : DefaultLogicFactory.LogicModel.NULL.getCode(),
+                    null != userAccountQuotaEntity ? DefaultLogicFactory.LogicModel.MODEL_TYPE.getCode() : DefaultLogicFactory.LogicModel.NULL.getCode(),
+                    null != userAccountQuotaEntity ? DefaultLogicFactory.LogicModel.USER_QUOTA.getCode() : DefaultLogicFactory.LogicModel.NULL.getCode());
 
-        UserAccountQuotaEntity userAccountQuotaEntity = openAiRepository.queryUserAccount(chatProcess.getOpenid());
+            if (!LogicCheckTypeVO.SUCCESS.equals(ruleLogicEntity.getType())) {
+                log.info("用户【{}】不放行，状态为【{}】", chatProcess.getOpenid(), ruleLogicEntity);
+                emitter.send(ruleLogicEntity.getInfo());
+                emitter.complete();
+                return emitter;
+            }
+            // 4. 应答处理
+            // 4. 应答处理 【ChatGPT、ChatGLM 策略模式】
+            openAiGroup.get(chatProcess.getChannel()).doMessageResponse(ruleLogicEntity.getData(), emitter);
 
-        //3.规则过滤
-        //doCheckLogic由子类实现
-        RuleLogicEntity<ChatProcessAggregate> ruleLogicEntity = this.doCheckLogic(chatProcess, userAccountQuotaEntity,
-                DefaultLogicFactory.LogicModel.ACCESS_LIMIT.getCode(),
-                DefaultLogicFactory.LogicModel.SENSITIVE_WORD.getCode(),
-                null != userAccountQuotaEntity ? DefaultLogicFactory.LogicModel.ACCOUNT_STATUS.getCode() : DefaultLogicFactory.LogicModel.NULL.getCode(),
-                null != userAccountQuotaEntity ? DefaultLogicFactory.LogicModel.MODEL_TYPE.getCode() : DefaultLogicFactory.LogicModel.NULL.getCode(),
-                null != userAccountQuotaEntity ? DefaultLogicFactory.LogicModel.USER_QUOTA.getCode() : DefaultLogicFactory.LogicModel.NULL.getCode());
 
-        if (!LogicCheckTypeVO.SUCCESS.equals(ruleLogicEntity.getType())) {
-            log.info("用户【{}】不放行，状态为【{}】", chatProcess.getOpenid(), ruleLogicEntity);
-            emitter.send(ruleLogicEntity.getInfo());
-            emitter.complete();
-            return emitter;
-        }
-        // 3. 应答处理
-        try {
-            this.doMessageResponse(chatProcess, emitter);
         } catch (Exception e) {
             throw new ChatGPTException(Constants.ResponseCode.UN_ERROR.getCode(), Constants.ResponseCode.UN_ERROR.getInfo());
         }
 
-        // 4. 返回结果
+        // 5. 返回结果
         return emitter;
     }
-
-    @Override
-    public ResponseBodyEmitter completionsGLM(ChatProcessAggregate chatProcess) throws Exception {
-//        //1.校验权限
-//        if (!"b8b6".equals(chatProcess.getToken())) {
-//            throw new ChatGPTException(Constants.ResponseCode.TOKEN_ERROR.getCode(), Constants.ResponseCode.TOKEN_ERROR.getInfo());
-//        }
-
-        //2.请求应答
-        //ResponseBodyEmitter是一种用于将响应数据发送给客户端的异步模式，可以在Spring MVC的控制器方法中使用。
-        ResponseBodyEmitter emitter = new ResponseBodyEmitter(3 * 60 * 1000L);
-        emitter.onCompletion(() -> {
-            log.info("流式问答请求完成，使用模型：{}", chatProcess.getModel());
-        });
-        emitter.onError(throwable -> log.error("流式问答请求，使用模型：{}", chatProcess.getModel(), throwable));
-
-        UserAccountQuotaEntity userAccountQuotaEntity = new UserAccountQuotaEntity();
-        userAccountQuotaEntity.setOpenid("123456");
-
-        //3.规则过滤
-        //doCheckLogic由子类实现
-        RuleLogicEntity<ChatProcessAggregate> ruleLogicEntity = this.doCheckLogic(chatProcess, userAccountQuotaEntity,
-                DefaultLogicFactory.LogicModel.ACCESS_LIMIT.getCode(),
-                DefaultLogicFactory.LogicModel.SENSITIVE_WORD.getCode());
-
-        if (!LogicCheckTypeVO.SUCCESS.equals(ruleLogicEntity.getType())) {
-            emitter.send(ruleLogicEntity.getInfo());
-            emitter.complete();
-            return emitter;
-        }
-
-        //4.应答处理
-        try {
-            this.doGLMMessageResponse(chatProcess, emitter);
-        } catch (Exception e) {
-            throw new ChatGPTException(Constants.ResponseCode.UN_ERROR.getCode(), Constants.ResponseCode.UN_ERROR.getInfo());
-        }
-
-        // 4. 返回结果
-        return emitter;
-    }
-
-    protected abstract void doMessageResponse(ChatProcessAggregate chatProcess, ResponseBodyEmitter responseBodyEmitter) throws JsonProcessingException;
-
-    protected abstract void doGLMMessageResponse(ChatProcessAggregate chatProcess, ResponseBodyEmitter responseBodyEmitter);
 
     protected abstract RuleLogicEntity<ChatProcessAggregate> doCheckLogic(ChatProcessAggregate chatProcess, UserAccountQuotaEntity userAccountQuotaEntity, String... logics) throws Exception;
 }

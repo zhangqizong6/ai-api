@@ -14,6 +14,4 @@ public interface IChatService {
 
     ResponseBodyEmitter completions(ResponseBodyEmitter emitter, ChatProcessAggregate chatProcess) throws Exception;
 
-    ResponseBodyEmitter completionsGLM(ChatProcessAggregate var1) throws Exception;
-
 }
